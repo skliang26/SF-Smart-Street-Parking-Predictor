@@ -1,3 +1,4 @@
+#src/constants.py
 APP_TITLE = "SF Smart Street Parking Predictor"
 APP_CAPTION = "Enter coordinates, type an address, ask AI bot, or click the map to set your point. Distances shown in ft/mi (toggle in sidebar)."
 
