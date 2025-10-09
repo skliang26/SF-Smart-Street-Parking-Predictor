@@ -28,8 +28,7 @@ def _normalize_key(s: str) -> str:
 
 def _match_poi_coords(raw_query: str):
     """
-    substring match for known POIs.
-    Works for 'pier 39', 'Pier39', and variants with 'San Francisco' appended.
+    substring match for known POIs(point of interest).
     """
     key = _normalize_key(raw_query)
     # Remove trailing city if present so substring checks are cleaner
