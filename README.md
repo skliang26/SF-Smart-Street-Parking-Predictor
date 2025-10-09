@@ -10,7 +10,7 @@ Geocoding is SF-biased and recognizes common POIs like “Pier 39”, “Golden 
 
 ---
 
-## ✨ Highlights
+## Highlights
 - Multiple ways to set origin: **Presets • Coordinates • Address • AI (local via Ollama) • Map click**
 - Hover popups on pins (no misclicks that move the origin)
 - Ranking balances **spots available vs distance** (you can tune α & β)
@@ -21,15 +21,15 @@ Geocoding is SF-biased and recognizes common POIs like “Pier 39”, “Golden 
 
 ---
 
-## ⚙️ How It Works
+## How It Works
 
-### 🧮 Data Loading (`src/data.py`)
+### Data Loading (`src/data.py`)
 - Reads `on_street_parking.csv`
 - Derives a segment center from `center` (preferred), or midpoint of latitude/longitude arrays, or WKT shape (`LINESTRING lon lat`)
 - Builds a KDTree (if scikit-learn installed) for fast geospatial queries
 - Computes a simple availability proxy `EST_AVAILABLE = 0.3 * PRKG_SPLY` for map color dots
 
-### 🧠 Scoring (`src/rank.py`)
+### Scoring (`src/rank.py`)
 - Distance (miles) by haversine
 - Score per segment:
   ```python
