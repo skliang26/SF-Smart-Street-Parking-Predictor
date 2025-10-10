@@ -37,6 +37,7 @@ User: "4 top suggestions near the Ferry Building"
 JSON: {"address":"Ferry Building, San Francisco, CA","top_n":4}
 """
 
+# ask the local Ollama model to convert the user's text into JSON.
 def _call_ollama(prompt: str) -> Dict[str, Any]:
     try:
         resp = requests.post(
@@ -45,6 +46,8 @@ def _call_ollama(prompt: str) -> Dict[str, Any]:
                 "model": OLLAMA_MODEL,
                 "prompt": SYSTEM_INSTRUCTIONS.strip() + "\nUser: " + prompt.strip() + "\nJSON:",
                 "stream": False,
+                "format": "json",
+                "options": {"temperature": 0.1},  # steadier JSON
             },
             timeout=20,
         )
@@ -56,30 +59,33 @@ def _call_ollama(prompt: str) -> Dict[str, Any]:
         parsed = json.loads(m.group(0))
 
         # Post-normalize to SF rules
-        if "address" in parsed:
+        if "address" in parsed and isinstance(parsed["address"], str):
+            # strip any stray angle brackets
+            parsed["address"] = parsed["address"].replace("<", "").replace(">", "").strip()
             parsed["address"] = ensure_sf(parsed["address"])
+            # prefer address → drop any model lat/lon so we geocode/POI later
+            parsed.pop("lat", None)
+            parsed.pop("lon", None)
 
-        if "lat" in parsed and "lon" in parsed:
+        # If address not present but lat/lon are, keep them only if inside SF
+        elif "lat" in parsed and "lon" in parsed:
             try:
                 la = float(parsed["lat"]); lo = float(parsed["lon"])
                 if not in_sf_bounds(la, lo):
-                    # drop invalid coords; we'll rely on address if present
-                    parsed.pop("lat", None)
-                    parsed.pop("lon", None)
+                    parsed.pop("lat", None); parsed.pop("lon", None)
             except Exception:
-                parsed.pop("lat", None)
-                parsed.pop("lon", None)
+                parsed.pop("lat", None); parsed.pop("lon", None)
 
         return parsed
     except Exception:
         return {}
 
-# Simple regex fallback if Ollama fails (left as is, or keep your existing version)
+#  regex fallback if Ollama fails
 def _regex_fallback(nl: str) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     txt = nl or ""
 
-    # coords
+    # coords check
     m = re.search(r"(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)", txt)
     if m:
         out["lat"] = float(m.group(1)); out["lon"] = float(m.group(2))
@@ -91,13 +97,13 @@ def _regex_fallback(nl: str) -> Dict[str, Any]:
     if m:
         out["radius_mi"] = float(m.group(1))
 
-    # units
+    # units (ft or mi)
     if re.search(r"\bfeet|ft\b", txt, flags=re.I):
         out["units"] = "ft"
     elif re.search(r"\bmi|mile|miles\b", txt, flags=re.I):
         out["units"] = "mi"
 
-    # ---- robust top_n extraction ----
+    # ----  top_n extraction ----
     # capture: "top 4", "top4", "show 4", "4 top", "4 top suggestions", "4 suggestions", "4 results"
     patterns = [
         r"\btop\s*(\d{1,2})\b",                               # top 4 / top4
@@ -122,7 +128,8 @@ def _regex_fallback(nl: str) -> Dict[str, Any]:
 
     return out
 
-
+# Try the LLM (Ollama) for structured JSON.
+# If that fails, use a simple regex-based parser.
 def parse_nl_query(nl: str) -> Dict[str, Any]:
     nl = (nl or "").strip()
     if not nl:

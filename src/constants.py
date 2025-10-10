@@ -5,12 +5,12 @@ APP_CAPTION = "Enter coordinates, type an address, ask AI bot, or click the map 
 FT_PER_MI = 5280.0
 EARTH_RADIUS_MI = 3958.7613  # miles
 
-HEATMAP_GRADIENT = {
-    0.00: "red",
-    0.25: "orange",
-    0.50: "yellow",
-    0.75: "lightgreen",
-    1.00: "darkgreen",
+HEATMAP_GRADIENT = { 
+    "0.00": "red", 
+    "0.25": "orange", 
+    "0.50": "yellow", 
+    "0.75": "lightgreen", 
+    "1.00": "darkgreen",     
 }
 
 CLUSTER_CSS = """
@@ -76,5 +76,9 @@ PRESETS = {
 }
 
 # ---- Ollama (local LLM) defaults ----
-OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "mistral"
+OLLAMA_BASE = "http://localhost:11434"
+OLLAMA_URL  = f"{OLLAMA_BASE}/api/generate"
+OLLAMA_MODEL = "gemma3:4b"
+
+OLLAMA_OPTIONS = {"temperature": 0.1}
+ 

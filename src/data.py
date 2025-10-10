@@ -14,7 +14,7 @@ except Exception:
 @st.cache_data
 def load_df(path="on_street_parking.csv"):
     """
-    Load and normalize the on-street parking dataset, then (optionally) build a KDTree
+    Load and normalize the on-street parking dataset, then build a KDTree
     for fast nearest-neighbor searches.
 
     Returns:
@@ -74,7 +74,7 @@ def load_df(path="on_street_parking.csv"):
     if "PRKG_SPLY" not in df.columns:
         df["PRKG_SPLY"] = 0
     df["PRKG_SPLY"] = pd.to_numeric(df["PRKG_SPLY"], errors="coerce").fillna(0).astype(float)
-    df["EST_AVAILABLE"] = (df["PRKG_SPLY"] * 0.3).astype(float)
+    df["EST_AVAILABLE"] = (df["PRKG_SPLY"] * 0.3).astype(float)     # estimate about 30% parking spots are free
 
     kdt = None
     coords_rad = None

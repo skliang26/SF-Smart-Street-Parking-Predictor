@@ -20,9 +20,11 @@ try:
 except Exception:
     pass
 
+# -------- Helpers --------
 def in_sf_bounds(lat: float, lon: float) -> bool:
     return (SF_BBOX[1] <= float(lat) <= SF_BBOX[3]) and (SF_BBOX[0] <= float(lon) <= SF_BBOX[2])
 
+# Normalize a string for fuzzy matching (lowercase, punctuation)
 def _normalize_key(s: str) -> str:
     return re.sub(r"[^a-z0-9 ]+", "", (s or "").lower()).strip()
 

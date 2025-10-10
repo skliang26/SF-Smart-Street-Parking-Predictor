@@ -9,18 +9,19 @@ def render_sidebar():
 
     st.header("Inputs")
 
-    # preset picker with on_change callback
+    # --- Preset picker with on_change callback ---
     def _apply_preset():
         name = st.session_state.get("preset_choice")
         if name in PRESETS:
             p_lat, p_lon = PRESETS[name]
-            # set origin + prefill coord widgets; runs before renders widgets
+            # set origin + prefill coord widgets; runs before widgets render
             st.session_state["origin_lat"] = float(p_lat)
             st.session_state["origin_lon"] = float(p_lon)
             st.session_state["lat_input"] = float(p_lat)
             st.session_state["lon_input"] = float(p_lon)
-            # Streamlit automatically reruns after the callback returns
-    # dropdown menu lists popular sf attractions + coords in PRESET
+            # Streamlit reruns after the callback returns
+
+    # Dropdown menu lists popular SF attractions + coords in PRESETS
     st.selectbox(
         "Preset",
         ["(Select Attraction)"] + list(PRESETS.keys()),
@@ -39,7 +40,7 @@ def render_sidebar():
     st.markdown("### Find a location")
     coord_tab, addr_tab, ai_tab = st.tabs(["By Coordinates", "By Address", "AI (local)"])
 
-    # AI tab: using Ollama natural-language to parameters
+    # --- AI tab: using Ollama to interpret natural language ---
     with ai_tab:
         st.caption("Powered by a local model via Ollama (no data leaves your computer).")
         with st.form("ai_form", clear_on_submit=False):
@@ -55,13 +56,8 @@ def render_sidebar():
             if not intent:
                 st.warning("I couldn't interpret that. Try adding a place or lat/lon.")
             else:
-                # 1) Update origin from lat/lon or address
-                if "lat" in intent and "lon" in intent:
-                    st.session_state["origin_lat"] = float(intent["lat"])
-                    st.session_state["origin_lon"] = float(intent["lon"])
-                    st.session_state["lat_input"] = float(intent["lat"])
-                    st.session_state["lon_input"] = float(intent["lon"])
-                elif "address" in intent and GEOCODER_AVAILABLE:
+                # --- FIX #1: Prefer ADDRESS -> geocode (and only if no address, use lat/lon) ---
+                if "address" in intent and intent["address"] and GEOCODER_AVAILABLE:
                     with st.spinner("Geocoding address from AI…"):
                         res = geocode_cached(intent["address"])
                     if res:
@@ -73,24 +69,29 @@ def render_sidebar():
                         st.success(f"Address resolved to: ({lat_g:.6f}, {lon_g:.6f})")
                     else:
                         st.warning("AI gave an address I couldn't geocode. Try adding lat/lon.")
+                elif "lat" in intent and "lon" in intent:
+                    st.session_state["origin_lat"] = float(intent["lat"])
+                    st.session_state["origin_lon"] = float(intent["lon"])
+                    st.session_state["lat_input"] = float(intent["lat"])
+                    st.session_state["lon_input"] = float(intent["lon"])
 
-                # 2) Units
+                # Units override (optional)
                 if "units" in intent:
                     st.session_state["units_override"] = intent["units"]
 
-                # 3) Radius (in miles)
+                # Radius (in miles) override (optional)
                 if "radius_mi" in intent:
                     st.session_state["radius_mi_override"] = float(intent["radius_mi"])
 
-                # 4) Scoring knobs
+                # Scoring knobs (optional)
                 if "alpha" in intent:
                     st.session_state["alpha_override"] = float(intent["alpha"])
                 if "beta" in intent:
                     st.session_state["beta_override"] = float(intent["beta"])
 
-                # 5) Top-N
+                # --- FIX #2: Make top_n from AI actually update the slider value ---
                 if "top_n" in intent:
-                    st.session_state["top_n_override"] = int(intent["top_n"])
+                    st.session_state["top_n_slider"] = int(intent["top_n"])
 
                 st.info(
                     "AI set: "
@@ -103,7 +104,7 @@ def render_sidebar():
                 )
                 st.rerun()
 
-    # address tab first to set state before number_input exists 
+    # --- Address tab (runs before number_input exists so we can set state safely) ---
     with addr_tab:
         with st.form("addr_form", clear_on_submit=False):
             addr = st.text_input("Address", placeholder="e.g., 1 Ferry Building, San Francisco")
@@ -129,11 +130,11 @@ def render_sidebar():
                 else:
                     st.warning("Couldn't find that address. Try something more specific.")
 
-    # ensure input keys exist BEFORE rendering the coord widgets
+    # Ensure input keys exist BEFORE rendering the coord widgets
     st.session_state.setdefault("lat_input", float(lat_default))
     st.session_state.setdefault("lon_input", float(lon_default))
 
-    # coordinates tab (render after potential updates)
+    # --- Coordinates tab (render after potential updates) ---
     with coord_tab:
         with st.form("coord_form", clear_on_submit=False):
             c1, c2 = st.columns(2)
@@ -162,9 +163,13 @@ def render_sidebar():
     st.markdown("---")
     st.subheader("Ranking Controls")
 
-    # respect AI overrides if present
-    units = st.radio("Distance units", ["ft", "mi"], horizontal=True,
-                     index=(0 if st.session_state.get("units_override","ft")=="ft" else 1))
+    # Respect AI overrides if present
+    units = st.radio(
+        "Distance units", ["ft", "mi"],
+        horizontal=True,
+        index=(0 if st.session_state.get("units_override", "ft") == "ft" else 1)
+    )
+
     if units == "ft":
         # If AI provided a radius in miles, convert to ft for initial slider position
         default_ft = int(round(st.session_state.get("radius_mi_override", 1200/5280.0) * 5280.0))
@@ -175,18 +180,22 @@ def render_sidebar():
         radius_input = st.slider("Search radius (mi)", 0.1, 3.0, min(max(default_mi, 0.1), 3.0), 0.05)
         max_mi = radius_input
 
-    # how strongly distance hurts the score relative to supply 
-    # score = PRKG_SPLY / (1 + α * (dist)^β) 
-    # alpha = 
-    alpha = st.slider("Distance penalty α",
-                      0.2, 3.0, float(st.session_state.get("alpha_override", 0.8)), 0.1,            # α = penalty scale. Larger α → distance matters more
-                      help="Scales how much distance hurts (bigger α = distance matters more)")
-    beta = st.slider("Distance exponent β",                                                         # β (beta) = penalty curve. 
-                     1.0, 3.0, float(st.session_state.get("beta_override", 1.6)), 0.1,
-                     help="Shapes how distance hurts the score (non-linear curve): 1=linear, >1=hurts faster, <1=more tolerant.")
-                    # β = 1 → linear penalty with distance. β > 1 → superlinear (distance hurts more quickly as it grows). β < 1 → sublinear (farther locations aren’t punished as harshly).
+    alpha = st.slider(
+        "Distance penalty α",
+        0.2, 3.0, float(st.session_state.get("alpha_override", 0.8)), 0.1,
+        help="Scales how much distance hurts (bigger α = distance matters more)"
+    )
+    beta = st.slider(
+        "Distance exponent β",
+        1.0, 3.0, float(st.session_state.get("beta_override", 1.6)), 0.1,
+        help="Shapes how distance hurts the score (1=linear, >1=hurts faster, <1=more tolerant)"
+    )
 
-    top_n = st.slider("Show top N suggestions", 1, 10, int(st.session_state.get("top_n_override", 5)), 1)
+    # --- Use a KEY so we can programmatically update it from AI (top_n_slider) ---
+    if "top_n_slider" not in st.session_state:
+        # default to AI suggestion if present, else 5
+        st.session_state["top_n_slider"] = int(st.session_state.get("top_n_override", 5))
+    top_n = st.slider("Show top N suggestions", 1, 10, key="top_n_slider")
 
     st.markdown("---")
     st.subheader("Map Layers")
